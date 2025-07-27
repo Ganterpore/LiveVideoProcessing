@@ -26,21 +26,6 @@ impl FFmpegCamera {
         }
     }
 
-    pub fn list_devices() -> Result<Vec<String>, Box<dyn std::error::Error>> {
-        let output = Command::new("ffmpeg")
-            .args(&["-f", "avfoundation", "-list_devices", "true", "-i", ""])
-            .output()?;
-
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        let devices: Vec<String> = stderr
-            .lines()
-            .filter(|line| line.contains("AVFoundation video devices:") || line.contains("["))
-            .map(|line| line.to_string())
-            .collect();
-
-        Ok(devices)
-    }
-
     pub fn capture_continuous<F>(&self, mut callback: F) -> Result<(), Box<dyn std::error::Error>>
     where
         F: FnMut(CameraFrame) + Send + 'static,
@@ -126,16 +111,5 @@ mod tests {
         assert_eq!(camera.height, 480);
         assert_eq!(camera.fps, 30.0);
         assert_eq!(format!("{:.1}", camera.fps), "30.0");
-    }
-
-    #[test]
-    fn test_device_listing() {
-        // This test requires FFmpeg to be installed
-        if let Ok(_devices) = FFmpegCamera::list_devices() {
-            // Test passes if we can list devices without error
-            assert!(true);
-        } else {
-            println!("FFmpeg not available for testing");
-        }
     }
 }

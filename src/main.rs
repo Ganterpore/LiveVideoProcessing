@@ -4,22 +4,17 @@ mod camera;
 fn main() -> Result<(), eframe::Error> {
     println!("FFmpeg Camera Demo");
     
-    ui::root::build_ui()
+    match camera::list_devices::list_devices() {
+        Ok(devices) => {
+            ui::root::build_ui(devices)
+        }
+        Err(e) => {
+            println!("Error listing devices: {}", e);
+            println!("Make sure FFmpeg is installed: brew install ffmpeg");
+            return Ok(());
+        }
+    }
 
-    // First, list available devices
-    // println!("Available camera devices:");
-    // match FFmpegCamera::list_devices() {
-    //     Ok(devices) => {
-    //         for device in devices {
-    //             println!("  {}", device);
-    //         }
-    //     }
-    //     Err(e) => {
-    //         println!("Error listing devices: {}", e);
-    //         println!("Make sure FFmpeg is installed: brew install ffmpeg");
-    //         return Ok(());
-    //     }
-    // }
 
     // Create camera instance
     // TODO id, width, height, fps??

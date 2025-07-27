@@ -127,4 +127,15 @@ mod tests {
         assert_eq!(camera.fps, 30.0);
         assert_eq!(format!("{:.1}", camera.fps), "30.0");
     }
+
+    #[test]
+    fn test_device_listing() {
+        // This test requires FFmpeg to be installed
+        if let Ok(_devices) = FFmpegCamera::list_devices() {
+            // Test passes if we can list devices without error
+            assert!(true);
+        } else {
+            println!("FFmpeg not available for testing");
+        }
+    }
 }

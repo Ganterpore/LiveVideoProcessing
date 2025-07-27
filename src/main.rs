@@ -1,12 +1,10 @@
-mod camera;
-mod save;
 mod ui;
+mod camera;
 
-use crate::camera::{CameraFrame, FFmpegCamera};
-use crate::save::save_frame_as_image;
-
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+fn main() -> Result<(), eframe::Error> {
     println!("FFmpeg Camera Demo");
+    
+    ui::root::build_ui()
 
     // First, list available devices
     // println!("Available camera devices:");
@@ -58,20 +56,5 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     //     }
     // })?;
 
-    Ok(())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    #[test]
-    fn test_device_listing() {
-        // This test requires FFmpeg to be installed
-        if let Ok(_devices) = FFmpegCamera::list_devices() {
-            // Test passes if we can list devices without error
-            assert!(true);
-        } else {
-            println!("FFmpeg not available for testing");
-        }
-    }
+    // Ok(())
 }

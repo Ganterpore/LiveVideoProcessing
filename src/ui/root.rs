@@ -1,6 +1,5 @@
 use eframe::{egui, Frame};
 use egui::Context;
-use std::sync::{Arc, Mutex};
 use crate::camera::list_devices::VideoDevice;
 use crate::ui::state::AppState;
 
@@ -19,11 +18,7 @@ pub fn build_ui(devices: Vec<VideoDevice>) -> Result<(), eframe::Error> {
                 available_devices: devices,
                 delay_sec: 5,
                 selected_device: first_device,
-                current_frame: Arc::new(Mutex::new(None)),
-                texture_handle: None,
-                is_streaming: false,
-                stream_handle: None,
-                show_video: false,
+                ..Default::default()
             }))
         }),
     )

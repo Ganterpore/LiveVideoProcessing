@@ -1,5 +1,5 @@
 use egui::Context;
-use std::sync::Arc;
+use std::sync::{Arc, atomic::Ordering};
 use std::thread;
 use eframe::epaint::ColorImage;
 use crate::camera::camera::{CameraFrame, FFmpegCamera};
@@ -7,15 +7,15 @@ use crate::ui::state::AppState;
 
 impl AppState {
     pub fn start_streaming(&mut self, ctx: &Context) {
-        if self.is_streaming {
+        if self.is_streaming.load(Ordering::Relaxed) {
             return;
         }
-
+        self.is_streaming.store(true, Ordering::Relaxed);
         println!("Starting video stream for device {}", self.selected_device);
 
-        // First, let's try to capture a single frame to test camera access
-        let test_camera = FFmpegCamera::new(self.selected_device, 640, 480, 30.00);
-        match test_camera.capture_single_frame() {
+        // First capture a single frame to display
+        let camera = FFmpegCamera::new(self.selected_device, 640, 480, 30.00);
+        match camera.capture_single_frame() {
             Ok(frame) => {
                 println!("Successfully captured test frame: {}x{}, {} bytes",
                          frame.width, frame.height, frame.data.len());
@@ -32,12 +32,11 @@ impl AppState {
             }
         }
 
-        self.is_streaming = true;
         let frame_data = Arc::clone(&self.current_frame);
-        let camera = FFmpegCamera::new(self.selected_device, 640, 480, 30.00);
         let ctx_clone = ctx.clone();
         let delay_sec = self.delay_sec;
 
+        let is_streaming_clone = self.is_streaming.clone();
         let handle = thread::spawn(move || {
             let mut frame_buffer = std::collections::VecDeque::new();
             let target_buffer_size = if delay_sec == 0 { 0 } else { (delay_sec as f64 * 30.0) as usize };
@@ -67,7 +66,7 @@ impl AppState {
                         }
                     }
                 }
-            });
+            }, is_streaming_clone);
 
             if let Err(e) = result {
                 eprintln!("Camera capture error: {}", e);
@@ -80,7 +79,8 @@ impl AppState {
 
     pub fn stop_streaming(&mut self) {
         println!("Stopping video stream");
-        self.is_streaming = false;
+        self.is_streaming.store(false, Ordering::Relaxed);
+        self.stream_handle.take();
         // Note: In a production app, you'd want to implement proper thread cleanup
     }
 

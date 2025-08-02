@@ -1,5 +1,7 @@
 use std::io::{BufReader, Read};
 use std::process::{Command, Stdio};
+use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
 
 #[derive(Debug)]
 pub struct CameraFrame {
@@ -26,7 +28,7 @@ impl FFmpegCamera {
         }
     }
 
-    pub fn capture_continuous<F>(&self, mut callback: F) -> Result<(), Box<dyn std::error::Error>>
+    pub fn capture_continuous<F>(&self, mut callback: F, is_streaming: Arc<AtomicBool>) -> Result<(), Box<dyn std::error::Error>>
     where
         F: FnMut(CameraFrame) + Send + 'static,
     {
@@ -71,7 +73,7 @@ impl FFmpegCamera {
         let mut buffer = vec![0u8; frame_size];
         let mut frame_count = 0;
 
-        loop {
+        while is_streaming.load(std::sync::atomic::Ordering::Relaxed) {
             // Read one frame worth of data
             match reader.read_exact(&mut buffer) {
                 Ok(()) => {

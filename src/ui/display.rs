@@ -19,11 +19,12 @@ impl AppState {
         ui.separator();
 
         ui.horizontal(|ui| {
-            if ui.button("Stop Stream").clicked() && self.is_streaming {
+            if ui.button("Stop Stream").clicked() && self.is_streaming.load(std::sync::atomic::Ordering::Relaxed) {
+                self.stop_streaming();
                 self.stop_streaming();
             }
 
-            ui.label(if self.is_streaming {
+            ui.label(if self.is_streaming.load(std::sync::atomic::Ordering::Relaxed) {
                 "Status: Streaming"
             } else {
                 "Status: Stopped"
@@ -69,7 +70,7 @@ impl AppState {
             } else {
                 ui.centered_and_justified(|ui| {
                     ui.label("Waiting for video frames...");
-                    if !self.is_streaming {
+                    if !self.is_streaming.load(std::sync::atomic::Ordering::Relaxed) {
                         ui.label("Stream stopped.");
                     }
                 });

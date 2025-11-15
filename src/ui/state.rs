@@ -1,7 +1,6 @@
-use std::sync::{Arc, Mutex, atomic::{AtomicBool}};
+use std::sync::{Arc, Mutex};
 use eframe::epaint::TextureHandle;
-use std::thread;
-use crate::camera::camera::CameraFrame;
+use crate::camera::camera::{CameraFrame, StreamHandle};
 use crate::camera::list_devices::VideoDevice;
 
 pub struct AppState {
@@ -10,9 +9,7 @@ pub struct AppState {
     pub selected_device: u32,
     pub current_frame: Arc<Mutex<Option<CameraFrame>>>,
     pub texture_handle: Option<TextureHandle>,
-    pub is_streaming: Arc<AtomicBool>,
-    pub stream_handle: Option<thread::JoinHandle<()>>,
-    pub show_video: bool,
+    pub stream_handle: Option<StreamHandle>,
 }
 
 impl Default for AppState {
@@ -23,9 +20,7 @@ impl Default for AppState {
             selected_device: 0,
             current_frame: Arc::new(Mutex::new(None)),
             texture_handle: None,
-            is_streaming: Arc::new(AtomicBool::new(false)),
-            stream_handle: None,
-            show_video: false,
+            stream_handle: None
         }
     }
 }

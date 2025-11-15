@@ -1,7 +1,7 @@
 use std::io::{BufReader, Read};
 use std::process::{Command, Stdio};
 use std::sync::Arc;
-use std::sync::atomic::AtomicBool;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 #[derive(Debug)]
 pub struct CameraFrame {
@@ -9,6 +9,20 @@ pub struct CameraFrame {
     pub height: u32,
     pub data: Vec<u8>,
     pub timestamp: std::time::SystemTime,
+}
+
+pub struct StreamHandle {
+    is_streaming: Arc<AtomicBool>,
+}
+
+impl StreamHandle {
+    pub fn stop(&self) {
+        self.is_streaming.store(false, Ordering::Relaxed);
+    }
+
+    pub fn is_active(&self) -> bool {
+        self.is_streaming.load(Ordering::Relaxed)
+    }
 }
 
 pub struct FFmpegCamera {
@@ -28,20 +42,49 @@ impl FFmpegCamera {
         }
     }
 
-    pub fn capture_continuous<F>(&self, mut callback: F, is_streaming: Arc<AtomicBool>) -> Result<(), Box<dyn std::error::Error>>
+    pub fn capture_continuous<F>(&self, callback: F) -> Result<StreamHandle, Box<dyn std::error::Error>>
     where
         F: FnMut(CameraFrame) + Send + 'static,
     {
+        let is_streaming = Arc::new(AtomicBool::new(true));
+        let is_streaming_clone = Arc::clone(&is_streaming);
+
+        let width = self.width;
+        let height = self.height;
+        let fps = self.fps;
+        let device_id = self.device_id;
+
+        // Spawn the capture thread
+        std::thread::spawn(move || {
+            if let Err(e) = Self::capture_loop(device_id, width, height, fps, callback, is_streaming_clone) {
+                eprintln!("Capture loop error: {}", e);
+            }
+        });
+
+        Ok(StreamHandle { is_streaming })
+    }
+
+    fn capture_loop<F>(
+        device_id: u32,
+        width: u32,
+        height: u32,
+        fps: f64,
+        mut callback: F,
+        is_streaming: Arc<AtomicBool>,
+    ) -> Result<(), Box<dyn std::error::Error>>
+    where
+        F: FnMut(CameraFrame),
+    {
         println!("Starting FFmpeg with args: -f avfoundation -i {} -s {}x{} -r {} -pix_fmt rgb24 -f rawvideo -",
-                 self.device_id, self.width, self.height, self.fps);
+                 device_id, width, height, fps);
 
         let mut child = Command::new("ffmpeg")
             .args(&[
                 "-f", "avfoundation", // TODO use different "f" for windows/linux
-                "-r", &format!("{:.2}", &self.fps),
-                "-i", &self.device_id.to_string(),
-                "-s", &format!("{}x{}", self.width, self.height),
-                "-r", &format!("{:.1}", &self.fps),
+                "-r", &format!("{:.2}", fps),
+                "-i", &device_id.to_string(),
+                "-s", &format!("{}x{}", width, height),
+                "-r", &format!("{:.1}", fps),
                 "-pix_fmt", "rgb24",
                 "-f", "rawvideo",
                 "-"
@@ -69,11 +112,11 @@ impl FFmpegCamera {
 
         let mut reader = BufReader::new(stdout);
 
-        let frame_size = (self.width * self.height * 3) as usize; // RGB24 = 3 bytes per pixel
+        let frame_size = (width * height * 3) as usize; // RGB24 = 3 bytes per pixel
         let mut buffer = vec![0u8; frame_size];
         let mut frame_count = 0;
 
-        while is_streaming.load(std::sync::atomic::Ordering::Relaxed) {
+        while is_streaming.load(Ordering::Relaxed) {
             // Read one frame worth of data
             match reader.read_exact(&mut buffer) {
                 Ok(()) => {
@@ -83,8 +126,8 @@ impl FFmpegCamera {
                     }
 
                     let frame = CameraFrame {
-                        width: self.width,
-                        height: self.height,
+                        width,
+                        height,
                         data: buffer.clone(),
                         timestamp: std::time::SystemTime::now(),
                     };
@@ -92,39 +135,18 @@ impl FFmpegCamera {
                 }
                 Err(e) => {
                     eprintln!("Error reading frame {}: {}", frame_count + 1, e);
-
-                    // Try to read whatever data is available
-                    let mut partial_buffer = Vec::new();
-                    match reader.read_to_end(&mut partial_buffer) {
-                        Ok(bytes_read) => {
-                            println!("Read {} remaining bytes before error", bytes_read);
-                        }
-                        Err(read_err) => {
-                            println!("Could not read remaining data: {}", read_err);
-                        }
-                    }
                     break;
                 }
             }
         }
 
+        // Kill the FFmpeg process
+        println!("Stopping stream, killing FFmpeg process");
+        let _ = child.kill();
+        let _ = child.wait();
+
         // Wait for stderr thread to finish
         let _ = stderr_handle.join();
-
-        // Check if the process is still running and kill it if necessary
-        match child.try_wait() {
-            Ok(Some(status)) => {
-                println!("FFmpeg process exited with status: {}", status);
-            }
-            Ok(None) => {
-                println!("FFmpeg process still running, killing it");
-                let _ = child.kill();
-                let _ = child.wait();
-            }
-            Err(e) => {
-                println!("Error checking FFmpeg process status: {}", e);
-            }
-        }
 
         Ok(())
     }

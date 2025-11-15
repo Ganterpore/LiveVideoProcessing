@@ -13,25 +13,24 @@ pub fn build_ui(devices: Vec<VideoDevice>) -> Result<(), eframe::Error> {
     eframe::run_native(
         "Live Video Processor",
         options,
-        Box::new(move |_cc| {
-            Ok(Box::new(AppState {
+        Box::new(move |cc| {
+            let mut app = AppState {
                 available_devices: devices,
                 delay_sec: 5,
                 selected_device: first_device,
                 ..Default::default()
-            }))
+            };
+            // Start streaming immediately after creation
+            app.start_streaming(&cc.egui_ctx);
+            Ok(Box::new(app))
         }),
     )
 }
 
 impl eframe::App for AppState {
-    fn update(&mut self, ctx: &Context, frame: &mut Frame) {
+    fn update(&mut self, ctx: &Context, _frame: &mut Frame) {
         egui::CentralPanel::default().show(ctx, |ui| {
-            if !self.show_video {
-                self.show_settings(ctx, ui);
-            } else {
-                self.show_stream(ctx, ui);
-            }
+            self.show_stream(ctx, ui);
         });
     }
 

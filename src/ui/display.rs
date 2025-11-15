@@ -1,38 +1,41 @@
+use std::time::Duration;
 use egui::{Context, Ui};
 use eframe::emath::Vec2;
+use crate::camera::list_devices::VideoDevice;
 use crate::ui::state::AppState;
 
 impl AppState {
     pub fn show_stream(&mut self, ctx: &Context, ui: &mut Ui) {
-        // Video display UI
         ui.horizontal(|ui| {
-            ui.heading(&format!("Video Display - Device {}", self.selected_device));
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if ui.button("Back to Settings").clicked() {
-                    self.show_video = false;
-                    self.stop_streaming();
-                }
-            });
+            // Avalaible devices
+            ui.label("Selected Camera:");
+            egui::ComboBox::from_id_salt("Available Devices:")
+                .selected_text(&self.available_devices
+                    .iter().find(|device| { device.id == self.selected_device })
+                    .unwrap_or(&VideoDevice { id: 0, name: "".to_owned() }).name)
+                .show_ui(ui, |ui| {
+                    let mut should_stop = false;
+                    for device in &self.available_devices {
+                        let id = device.id;
+                        let name = &device.name;
+                        if ui.selectable_value(&mut self.selected_device, id, name).changed() {
+                            should_stop = true;
+                        }
+                    }
+                    if should_stop {
+                        self.restart_stream(ctx);
+                    }
+                });
+            // Stream delay
+            ui.label("Delay: ");
+            if ui.add(egui::DragValue::new(&mut self.delay_sec).range(0..=120)).changed() {
+                self.restart_stream(ctx);
+            };
+            ui.label("seconds");
         });
 
-        ui.label(&format!("Delay: {} seconds", self.delay_sec));
         ui.separator();
-
-        ui.horizontal(|ui| {
-            if ui.button("Stop Stream").clicked() && self.is_streaming.load(std::sync::atomic::Ordering::Relaxed) {
-                self.stop_streaming();
-                self.stop_streaming();
-            }
-
-            ui.label(if self.is_streaming.load(std::sync::atomic::Ordering::Relaxed) {
-                "Status: Streaming"
-            } else {
-                "Status: Stopped"
-            });
-        });
-
-        ui.separator();
-
+        
         // Display the current frame
         if let Ok(frame_guard) = self.current_frame.lock() {
             if let Some(ref frame) = *frame_guard {
@@ -62,19 +65,13 @@ impl AppState {
 
                 // Show frame info
                 ui.label(&format!(
-                    "Frame: {}x{} | Time: {:?}",
+                    "Frame: {}x{} | Time: {:?}s ago",
                     frame.width,
                     frame.height,
-                    frame.timestamp.elapsed().unwrap_or_default()
+                    frame.timestamp.elapsed().unwrap_or_default().as_secs()
                 ));
-            } else {
-                ui.centered_and_justified(|ui| {
-                    ui.label("Waiting for video frames...");
-                    if !self.is_streaming.load(std::sync::atomic::Ordering::Relaxed) {
-                        ui.label("Stream stopped.");
-                    }
-                });
             }
         }
+        ctx.request_repaint_after(Duration::from_millis(100))
     }
 }

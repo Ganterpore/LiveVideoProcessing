@@ -15,7 +15,7 @@ impl AppState {
         println!("Starting video stream for device {}", self.selected_device);
 
         // First capture a single frame to display
-        let camera = FFmpegCamera::new(self.selected_device, 640, 480, 30.00);
+        let camera = FFmpegCamera::new(self.selected_device, self.width, self.height, 30.00);
         match camera.capture_single_frame() {
             Ok(frame) => {
                 println!("Successfully captured test frame: {}x{}, {} bytes",

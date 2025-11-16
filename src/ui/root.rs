@@ -11,7 +11,7 @@ pub fn build_ui(devices: Vec<VideoDevice>) -> Result<(), eframe::Error> {
 
     let first_device = devices.get(0).unwrap_or(&VideoDevice{ id: 0, name: "".to_owned() }).id;
     eframe::run_native(
-        "Live Video Processor",
+        "Clip That!",
         options,
         Box::new(move |cc| {
             let mut app = AppState {

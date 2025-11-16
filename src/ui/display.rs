@@ -64,14 +64,34 @@ impl AppState {
                 ui.add(egui::Image::from_texture(&*texture).fit_to_exact_size(display_size));
 
                 // Show frame info
-                ui.label(&format!(
-                    "Frame: {}x{} | Time: {:?}s ago",
-                    frame.width,
-                    frame.height,
-                    frame.timestamp.elapsed().unwrap_or_default().as_secs()
-                ));
+                let elapsed = frame.timestamp.elapsed().unwrap_or_default();
+                ui.label(&format!("Time: {:?}s ago", elapsed.as_secs()));
             }
         }
-        ctx.request_repaint_after(Duration::from_millis(100))
+        ui.horizontal(|ui| {
+            ui.label("Resolution:");
+            let available_resolutions = vec!["2560x1440","1920x1080","1280x720", "640x480", "320x240"];
+            egui::ComboBox::from_id_salt("Resolution:")
+                .selected_text(format!("{}x{}", self.width, self.height))
+                .show_ui(ui, |ui| {
+                    let mut should_stop = false;
+                    for resolution in &available_resolutions {
+                        let mut current = format!("{}x{}", self.width, self.height);
+                        if ui.selectable_value(&mut current, resolution.to_string(), *resolution).changed() {
+                            if let Some((w, h)) = resolution.split_once('x') {
+                                if let (Ok(width), Ok(height)) = (w.parse::<u32>(), h.parse::<u32>()) {
+                                    self.width = width;
+                                    self.height = height;
+                                    should_stop = true;
+                                }
+                            }
+                        }
+                    }
+                    if should_stop {
+                        self.restart_stream(ctx);
+                    }
+                });
+        });
+        ctx.request_repaint_after(Duration::from_millis(100));
     }
 }
